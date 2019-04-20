@@ -1,6 +1,8 @@
 # x86e
 
-A simple x86 emulator in JavaScript.
+A simple x86 emulator, debugger, and editor in JavaScript.
+
+![Alt text](/screenshot.png?raw=true "Screenshot")
 
 ### Example using the browser
 

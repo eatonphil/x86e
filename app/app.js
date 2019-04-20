@@ -57,40 +57,49 @@ function CodeLine({ active, line, number }) {
   )
 }
 
-function Code({ activeLine, code, onChange }) {
-  const ref = React.useRef(null);
-
+function Code({ activeLine, code, editing, setCode, setEditing }) {
   const [cursor, setCursor] = React.useState(code.length - 1);
 
   React.useEffect(() => {
-    if (!ref.current) {
+    if (!editing) {
       return;
     }
 
     function onKeydown(e) {
-      if (ref.current !== document.activeElement) {
+      if (!editing || e.altKey || e.ctrlKey || e.metaKey) {
 	return;
       }
 
       e.stopPropagation();
+      if (e.key === 'Escape') {
+	setEditing(false);
+	return;
+      }
+
       if (e.key === 'Backspace') {
-	onChange(c => c.splice(cursor, 1));
 	setCursor(c => c - 1);
-      } else {
-	onChange(c => c + e.key);
+	setCode(c => {
+	  if (cursor === 0) {
+	    return c;
+	  }
+
+	  if (cursor === code.length - 1) {
+	    return c.slice(0, code.length - 1);
+	  }
+
+	  return c.slice(0, cursor) + c.slice(cursor);
+	});
+      } else if (e.key.length === 1) { // Guess for ignoring things like Meta, Shift, etc.
+	setCode(c => c + e.key);
       }
     }
 
-    ref.current.addEventListener('keydown', onKeydown);
+    document.addEventListener('keydown', onKeydown);
 
-    return () => {
-      if (ref.current) {
-	ref.current.removeEventListener('keydown', onKeydown);
-      }
-    }
-  }, [ref.current]);
+    return () => document.removeEventListener('keydown', onKeydown);
+  }, [editing, code]);
   return (
-    <div ref={ref}>
+    <div>
       {code.split('\n').map((line, i) => <CodeLine line={line} number={i+1} active={i === activeLine} />)}
     </div>
   )
@@ -120,6 +129,7 @@ function ripRealPosition(lines, rip) {
 function App({ defaultProgram }) {
   const [resetCount, reset] = React.useState(0);
   const [code, setCode] = React.useState(defaultProgram);
+  const [editing, setEditing] = React.useState(false);
   const lines = code.split('\n');
 
   const ticks = React.useRef([]);
@@ -144,6 +154,8 @@ function App({ defaultProgram }) {
     function handler (e) {
       if (e.key === 'n' || e.key === 'ArrowDown') {
 	ticks.current.push(true);
+      } else if (e.key === 'e') {
+	setEditing(true);
       }
     }
 
@@ -162,11 +174,17 @@ function App({ defaultProgram }) {
       <div class="Instructions">
 	<header>
 	  <h1>Program</h1>
-	  <button className="mr-2" type="button" onClick={() => reset(i => i + 1)}>Reset</button>
+	  <button className="mr-2" type="button" onClick={() => setEditing(editing => !editing)}>{editing ? 'Save' : 'Edit'}</button>
+	  <button className="mr-2" type="button" onClick={() => reset(i => i + 1)}>Restart</button>
 	  <input type="file" onChange={readFile} />
 	</header>
-	<Code activeLine={activeLine} code={code} onChange={(value) => (setCode(value), reset(i => i + 1))}>
-	</Code>
+	<Code
+	  editing={editing}
+	  setEditing={setEditing}
+	  activeLine={activeLine}
+	  code={code}
+	  setCode={(value) => (setCode(value), reset(i => i + 1))}
+	/>
       </div>
       <div class="Memory">
 	<h1>Memory</h1>

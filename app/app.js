@@ -1,8 +1,8 @@
-const START_STUB = `_start:
+const startStub = (kernel) => `_start:
 	CALL _main
 
 	MOV RDI, RAX
-	MOV RAX, 1
+	MOV RAX, ${SYSCALLS.EXIT[kernel]}
 	SYSCALL`;
 
 const DEFAULT_PROGRAM = `      	.section	__TEXT,__text,regular,pure_instructions
@@ -171,6 +171,7 @@ function ripRealPosition(lines, rip) {
 }
 
 function App({ defaultProgram }) {
+  const [kernel, setKernel] = React.useState('LINUX');
   const [resetCount, reset] = React.useState(0);
   const [code, setCode] = React.useState(defaultProgram);
   const [editing, setEditing] = React.useState(false);
@@ -193,18 +194,18 @@ function App({ defaultProgram }) {
 
   const [activeLine, setActiveLine] = React.useState(0);
   const { process } = React.useMemo(() => {
-    const res = run(code, clock);
+    const res = run(code, clock, kernel);
     const line = ripRealPosition(lines, res.process.registers.rip);
     setActiveLine(line);
     document.getElementById(line);
     return res;
-  }, [code, resetCount]);
+  }, [code, resetCount, kernel]);
 
   process.exit = (result) => {
     setOutput(p => p + result)
   };
   if (!process.labels._start) {
-    setCode(c => c + '\n' + START_STUB);
+    setCode(c => c + '\n' + startStub(kernel));
   }
 
   React.useEffect(() => {
@@ -236,6 +237,10 @@ function App({ defaultProgram }) {
 	    <h1>Program</h1>
 	    <button className="mr-2" type="button" onClick={() => setEditing(editing => !editing)}>{editing ? 'Save' : 'Edit'}</button>
 	    <button className="mr-2" type="button" onClick={() => (reset(i => i + 1), setOutput(''))}>Restart</button>
+	    <select className="mr-2" value={kernel} onChange={({ target: { value } }) => (setKernel(value), reset(i => i + 1), setOutput(''))}>
+	      <option value="LINUX">Emulate Linux</option>
+	      <option value="DARWIN">Emulate Darwin (macOS)</option>
+	    </select>
 	    <input type="file" onChange={readFile} />
 	  </header>
 	  <Code
@@ -243,7 +248,7 @@ function App({ defaultProgram }) {
 	    setEditing={setEditing}
 	    activeLine={activeLine}
 	    code={code}
-	    setCode={(value) => (setCode(value), reset(i => i + 1))}
+	    setCode={(value) => (setCode(value), reset(i => i + 1), setOutput(''))}
 	  />
 	</div>
 	<div class="Memory">

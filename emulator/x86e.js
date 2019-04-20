@@ -20,6 +20,13 @@ const SYSCALLS = {
   },
 };
 
+const startStub = (kernel) => `_start:
+	CALL _main
+
+	MOV RDI, RAX
+	MOV RAX, ${SYSCALLS.EXIT[kernel]}
+	SYSCALL`;
+
 function parseLabel(line) {
   let tokens = '';
   for (let i = 0; i < line.length; i++) {
@@ -32,6 +39,10 @@ function parseLabel(line) {
   }
 
   return null;
+}
+
+function debug(line) {
+  console.log(line);
 }
 
 function parseInstruction(line) {
@@ -174,6 +185,10 @@ async function interpret(process, clock) {
     await clock();
 
     const { instruction, args } = process.instructions[process.registers.rip];
+    if (process.flags.debug.instructions) {
+      debug('Instruction: ' + instruction + ' ' + args.join(', '));
+    }
+
     switch (instruction) {
       case 'push': {
 	guardArgs(instruction, args, 1);
@@ -248,14 +263,16 @@ async function interpret(process, clock) {
   }
 }
 
-function run(code, clock, kernel = 'LINUX') {
+function run(code, clock, kernel = 'LINUX', flags = { debug: {} }) {
   const memory = new Array(1024);
   const { directives, instructions, labels } = parse(code);
   const process = {
+    done: false,
     directives,
+    flags,
     instructions,
     labels,
-    kernel,
+    kernel,    
     registers: REGISTERS.reduce((rs, r) => ({ ...rs, [r]: 0 }), {}),
     memory,
   };
@@ -267,12 +284,53 @@ function run(code, clock, kernel = 'LINUX') {
   return { process, done };
 }
 
-try {
+if (typeof window === 'undefined') {
+  const allFlags = {
+    kernel: 'Emulate syscalls from one of: linux, darwin',
+    debugInstructions: 'Show each instruction with arguments when reached',
+  };
+  const flags = {};
+  process.argv.forEach(function (arg, i) {
+    if (!arg.startsWith('--')) return;
+
+    const flag = arg.slice(2);
+    if (flag === 'help') {
+      console.log('x86e.js');
+      console.log('\nFlags:');
+      Object.keys(allFlags).forEach(flag => console.log('\t--' + flag + ': ' + allFlags[flag]));
+      console.log('\nExample:');
+      console.log('\tnode emulate/x86e.js test.asm --kernel darwin');
+      process.exit(0);
+    }
+
+    if (allFlags[flag]) {
+      flags[flag] = process.argv[i + 1];
+    }
+  });
+
   const fs = require('fs');
-  const code = fs.readFileSync(process.argv[2]).toString();
-  const { process: p, done } = run(code, () => Promise.resolve());
+  let code = fs.readFileSync(process.argv[2]).toString();
+
+  if (!flags.kernel) {
+    flags.kernel = 'LINUX';
+  } else {
+    if (!['linux', 'darwin'].includes(flags.kernel.toLowerCase())) {
+      console.log('Invalid kernel: ' + flags.kernel);
+      process.exit(1);
+    }
+
+    flags.kernel = flags.kernel.toUpperCase();
+  }
+
+  if (!code.split('\n').filter(l => l.trim().startsWith('_start:')).length) {
+    code += '\n' + startStub(flags.kernel);
+  }
+
+  const { process: p, done } = run(code, () => Promise.resolve(), flags.kernel, {
+    debug: {
+      instructions: flags.debugInstructions,
+    },
+  });
   p.exit = process.exit;
   done.then(() => process.exit(p.registers.rax));
-} catch (e) {
-  // in browser
 }

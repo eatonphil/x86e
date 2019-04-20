@@ -1,10 +1,3 @@
-const startStub = (kernel) => `_start:
-	CALL _main
-
-	MOV RDI, RAX
-	MOV RAX, ${SYSCALLS.EXIT[kernel]}
-	SYSCALL`;
-
 const DEFAULT_PROGRAM = `      	.section	__TEXT,__text,regular,pure_instructions
 	.build_version macos, 10, 14	sdk_version 10, 14
 	.intel_syntax noprefix

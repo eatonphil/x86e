@@ -25,5 +25,5 @@ _main:
   POP RDI
 
   MOV RDI, RAX
-  MOV RAX, 0x2000001
+  MOV RAX, 1
   SYSCALL

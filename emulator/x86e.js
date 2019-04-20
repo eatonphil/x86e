@@ -102,6 +102,15 @@ function guardArgs(instruction, args, length) {
   }
 }
 
+function memoryPush(process, value) {
+  process.memory[process.registers.rsp--] = value;
+}
+
+function memoryPop(process, register) {
+  const regValue = process.memory[++process.registers.rsp];
+  process.registers[register] = regValue;
+}
+
 function interpretValue(process, valueRaw, isLValue) {
   const v = (function () {
     const value = valueRaw.toLowerCase();
@@ -148,7 +157,7 @@ function interpretValue(process, valueRaw, isLValue) {
 
 function interpretSyscall(process) {
   if (syscallId === SYSCALLS.EXIT) {
-    nodeProcess.exit(process.registers.rdi);
+    process.exit(process.registers.rdi);
   }
 }
 
@@ -161,15 +170,14 @@ async function interpret(process, clock) {
       case 'push': {
 	guardArgs(instruction, args, 1);
 	const regValue = interpretValue(process, args[0]);
-	process.memory[process.registers.rsp--] = regValue;
+	memoryPush(process, regValue);
 	process.registers.rip++;
 	break;
       }
       case 'pop': {
 	guardArgs(instruction, args, 1);
-	const regValue = process.memory[process.registers.rsp];
-	process.registers.rsp += WORD_SIZE_BYTES;
-	process.registers[args[0].toLowerCase()] = regValue;
+	const lhs = interpretValue(process, args[0], true);
+	memoryPop(process, lhs);
 	process.registers.rip++;
 	break;
       }
@@ -189,7 +197,7 @@ async function interpret(process, clock) {
       }
       case 'add': {
 	guardArgs(instruction, args, 2);
-	const lhs = args[0].toLowerCase();
+	const lhs = interpretValue(process, args[0], true);
 	const rhs = interpretValue(process, args[1]);
 	process.registers[lhs] += rhs;
 	process.registers.rip++;
@@ -197,7 +205,7 @@ async function interpret(process, clock) {
       }
       case 'sub': {
 	guardArgs(instruction, args, 2);
-	const lhs = args[0].toLowerCase();
+	const lhs = interpretValue(process, args[0], true);
 	const rhs = interpretValue(process, args[1]);
 	process.registers[lhs] -= rhs;
 	process.registers.rip++;
@@ -206,17 +214,19 @@ async function interpret(process, clock) {
       case 'call': {
 	guardArgs(instruction, args, 1);
 	const label = args[0];
-	process.memory[process.registers.rsp + process.registers.rip + 1];
-	process.registers.rsp -= WORD_SIZE_BYTES;
+	memoryPush(process, process.registers.rip + 1);
 	process.registers.rip = process.labels[label];
 	break;
       }
       case 'ret': {
 	guardArgs(instruction, args, 0);
-	process.registers.rip = process.memory[process.registers.rsp];
-	process.registers.rsp += WORD_SIZE_BYTES;
+	memoryPop(process, 'rip');
 	break;
       }
+      case 'nop':
+	guardArgs(instruction, args, 0);
+	process.registers.rsp++;
+	break;
       case 'syscall': {
 	guardArgs(instruction, args, 0);
 	interpretSyscall(process);
@@ -251,8 +261,9 @@ function run(code, clock) {
 try {
   const fs = require('fs');
   const code = fs.readFileSync(process.argv[2]).toString();
-  const { process: { registers: { rax } }, done } = run(code, () => Promise.resolve());
-  done.then(() => process.exit(rax));
+  const { process: p, done } = run(code, () => Promise.resolve());
+  p.exit = process.exit;
+  done.then(() => process.exit(p.registers.rax));
 } catch (e) {
   // in browser
 }

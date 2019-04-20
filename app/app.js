@@ -57,6 +57,45 @@ function CodeLine({ active, line, number }) {
   )
 }
 
+function Code({ activeLine, code, onChange }) {
+  const ref = React.useRef(null);
+
+  const [cursor, setCursor] = React.useState(code.length - 1);
+
+  React.useEffect(() => {
+    if (!ref.current) {
+      return;
+    }
+
+    function onKeydown(e) {
+      if (ref.current !== document.activeElement) {
+	return;
+      }
+
+      e.stopPropagation();
+      if (e.key === 'Backspace') {
+	onChange(c => c.splice(cursor, 1));
+	setCursor(c => c - 1);
+      } else {
+	onChange(c => c + e.key);
+      }
+    }
+
+    ref.current.addEventListener('keydown', onKeydown);
+
+    return () => {
+      if (ref.current) {
+	ref.current.removeEventListener('keydown', onKeydown);
+      }
+    }
+  }, [ref.current]);
+  return (
+    <div ref={ref}>
+      {code.split('\n').map((line, i) => <CodeLine line={line} number={i+1} active={i === activeLine} />)}
+    </div>
+  )
+}
+
 function ripRealPosition(lines, rip) {
   let realPosition = 0;
   let i = 0;
@@ -79,6 +118,7 @@ function ripRealPosition(lines, rip) {
 }
 
 function App({ defaultProgram }) {
+  const [resetCount, reset] = React.useState(0);
   const [code, setCode] = React.useState(defaultProgram);
   const lines = code.split('\n');
 
@@ -98,7 +138,7 @@ function App({ defaultProgram }) {
     const res = run(code, clock);
     setActiveLine(ripRealPosition(lines, res.process.registers.rip));
     return res;
-  }, [code]);
+  }, [code, resetCount]);
 
   React.useEffect(() => {
     function handler (e) {
@@ -122,9 +162,11 @@ function App({ defaultProgram }) {
       <div class="Instructions">
 	<header>
 	  <h1>Program</h1>
+	  <button className="mr-2" type="button" onClick={() => reset(i => i + 1)}>Reset</button>
 	  <input type="file" onChange={readFile} />
 	</header>
-	{lines.map((line, i) => <CodeLine line={line} number={i+1} active={i === activeLine} />)}
+	<Code activeLine={activeLine} code={code} onChange={(value) => (setCode(value), reset(i => i + 1))}>
+	</Code>
       </div>
       <div class="Memory">
 	<h1>Memory</h1>

@@ -1,6 +1,13 @@
 const WORD_SIZE_BYTES = 4;
 
-const REGISTERS = ['rdi', 'rsi', 'rsp', 'rbp', 'rax', 'eax', 'eip', 'edi', 'esi'];
+const REGISTERS = [
+  'rdi', 'rsi', 'rsp', 'rbp', 'rax', 'rbx', 'rcx', 'rdx', 'rip', 'r8',
+  'r9', 'r10', 'r11', 'r12', 'r13', 'r14', 'r15', 'cs', 'ds', 'fs',
+  'ss', 'es', 'gs',
+];
+const BIT32_REGISTERS = [
+  'edi', 'esi', 'esp', 'ebp', 'eax', 'ebx', 'ecx', 'edx', 'eip',
+];
 
 const SYSCALLS = {
   EXIT: 1,
@@ -106,11 +113,19 @@ function interpretValue(process, valueRaw, isLValue) {
       }
     }
 
+    if (BIT32_REGISTERS.includes(value)) {
+      if (isLValue) {
+	return value.replace('e', 'r');
+      } else{
+	return process.registers[value.replace('e', 'r')];
+      }
+    }
+
     if (value.startsWith('dword ptr [')) {
       const offsetString = value.substring('dword ptr ['.length, value.length - 1).trim();
       if (offsetString.includes('-')) {
 	const [l, r] = offsetString.split('-').map(l => interpretValue(process, l.trim()));
-	const address = process.memory.length + (process.registers.rsp + l - r) / WORD_SIZE_BYTES;
+	const address = (process.registers.rsp + l - r) / WORD_SIZE_BYTES;
 	if (isLValue) {
 	  return address;
 	} else {
@@ -138,25 +153,24 @@ function interpretSyscall(process) {
 }
 
 async function interpret(process, clock) {
-  while (process.registers.eip < process.instructions.length) {
+  while (process.registers.rip < process.instructions.length) {
     await clock();
 
-    const { instruction, args } = process.instructions[process.registers.eip];
+    const { instruction, args } = process.instructions[process.registers.rip];
     switch (instruction) {
       case 'push': {
 	guardArgs(instruction, args, 1);
-	// TODO: can PUSH take a literal number?
 	const regValue = interpretValue(process, args[0]);
-	process.memory.push(regValue);
-	process.registers.eip++;
+	process.memory[process.registers.rsp--] = regValue;
+	process.registers.rip++;
 	break;
       }
       case 'pop': {
 	guardArgs(instruction, args, 1);
 	const regValue = process.memory[process.registers.rsp];
-	process.registers.rsp -= WORD_SIZE_BYTES;
+	process.registers.rsp += WORD_SIZE_BYTES;
 	process.registers[args[0].toLowerCase()] = regValue;
-	process.registers.eip++;
+	process.registers.rip++;
 	break;
       }
       case 'mov': {
@@ -165,10 +179,12 @@ async function interpret(process, clock) {
 	const rhs = interpretValue(process, args[1]);
 	if (REGISTERS.includes(lhs)) {
 	  process.registers[lhs] = rhs;
+	} else if (BIT32_REGISTERS.includes(lhs)) {
+	  process.registers[lhs.replace('e', 'r')] = rhs;
 	} else {
 	  process.memory[lhs] = rhs;
 	}
-	process.registers.eip++;
+	process.registers.rip++;
 	break;
       }
       case 'add': {
@@ -176,7 +192,7 @@ async function interpret(process, clock) {
 	const lhs = args[0].toLowerCase();
 	const rhs = interpretValue(process, args[1]);
 	process.registers[lhs] += rhs;
-	process.registers.eip++;
+	process.registers.rip++;
 	break;
       }
       case 'sub': {
@@ -184,21 +200,21 @@ async function interpret(process, clock) {
 	const lhs = args[0].toLowerCase();
 	const rhs = interpretValue(process, args[1]);
 	process.registers[lhs] -= rhs;
-	process.registers.eip++;
+	process.registers.rip++;
 	break;
       }
       case 'call': {
 	guardArgs(instruction, args, 1);
 	const label = args[0];
-	process.memory[process.registers.rsp + process.registers.eip + 1];
-	process.registers.rsp += WORD_SIZE_BYTES;
-	process.registers.eip = process.labels[label];
+	process.memory[process.registers.rsp + process.registers.rip + 1];
+	process.registers.rsp -= WORD_SIZE_BYTES;
+	process.registers.rip = process.labels[label];
 	break;
       }
       case 'ret': {
 	guardArgs(instruction, args, 0);
-	process.registers.eip = process.memory[process.registers.rsp];
-	process.registers.rsp -= WORD_SIZE_BYTES;
+	process.registers.rip = process.memory[process.registers.rsp];
+	process.registers.rsp += WORD_SIZE_BYTES;
 	break;
       }
       case 'syscall': {
@@ -225,7 +241,8 @@ function run(code, clock) {
     memory,
   };
 
-  process.registers.eip = labels._main;
+  process.registers.rip = labels._main;
+  process.registers.rsp = process.memory.length;
 
   const done = interpret(process, clock);
   return { process, done };

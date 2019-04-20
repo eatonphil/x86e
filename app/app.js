@@ -57,7 +57,7 @@ function CodeLine({ active, line, number }) {
   )
 }
 
-function eipRealPosition(lines, eip) {
+function ripRealPosition(lines, rip) {
   let realPosition = 0;
   let i = 0;
   while (true) {
@@ -68,7 +68,7 @@ function eipRealPosition(lines, eip) {
       continue;
     }
 
-    if (i === eip) {
+    if (i === rip) {
       break;
     }
 
@@ -91,12 +91,12 @@ function App({ defaultProgram }) {
     ticks.current.pop();
   }
   clock.onTick = () =>
-    setActiveLine(eipRealPosition(lines, process.registers.eip));
+    setActiveLine(ripRealPosition(lines, process.registers.rip));
 
   const [activeLine, setActiveLine] = React.useState(0);
   const { process } = React.useMemo(() => {
     const res = run(code, clock);
-    setActiveLine(eipRealPosition(lines, res.process.registers.eip));
+    setActiveLine(ripRealPosition(lines, res.process.registers.rip));
     return res;
   }, [code]);
 

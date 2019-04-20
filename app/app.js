@@ -1,4 +1,4 @@
-const code = `      	.section	__TEXT,__text,regular,pure_instructions
+const DEFAULT_PROGRAM = `      	.section	__TEXT,__text,regular,pure_instructions
 	.build_version macos, 10, 14	sdk_version 10, 14
 	.intel_syntax noprefix
 	.globl	_plus                   ## -- Begin function plus
@@ -64,7 +64,7 @@ function eipRealPosition(lines, eip) {
     realPosition++;
 
     const line = lines[realPosition].trim();
-    if (line.startsWith('#') || line.includes(':') || line.startsWith('.')) {
+    if (line.startsWith('#') || line.includes(':') || line.startsWith('.') || !line.length) {
       continue;
     }
 
@@ -78,27 +78,32 @@ function eipRealPosition(lines, eip) {
   return realPosition;
 }
 
-function App() {
+function App({ defaultProgram }) {
+  const [code, setCode] = React.useState(defaultProgram);
   const lines = code.split('\n');
 
-  const ticks = [];
+  const ticks = React.useRef([]);
   const clock = async () => {
-    while (!ticks.length) {
+    while (!ticks.current.length) {
       await new Promise(done => setTimeout(() => done(false), 50));
     }
 
-    ticks.pop();
+    ticks.current.pop();
   }
   clock.onTick = () =>
     setActiveLine(eipRealPosition(lines, process.registers.eip));
 
-  const { process } = React.useMemo(() => run(code, clock), [code]);
-  const [activeLine, setActiveLine] = React.useState(eipRealPosition(lines, process.registers.eip));
+  const [activeLine, setActiveLine] = React.useState(0);
+  const { process } = React.useMemo(() => {
+    const res = run(code, clock);
+    setActiveLine(eipRealPosition(lines, res.process.registers.eip));
+    return res;
+  }, [code]);
 
   React.useEffect(() => {
     function handler (e) {
       if (e.key === 'n' || e.key === 'ArrowDown') {
-	ticks.push(true);
+	ticks.current.push(true);
       }
     }
 
@@ -106,17 +111,33 @@ function App() {
     return () => document.removeEventListener('keydown', handler);
   }, [setActiveLine]);
 
+  const readFile = ({ target }) => {
+    const reader = new FileReader();
+    reader.onload = () => setCode(reader.result);
+    reader.readAsText(target.files[0]);
+  };
+
   return (
     <div class="Wrapper">
       <div class="Instructions">
-	<h2>Program</h2>
+	<header>
+	  <h1>Program</h1>
+	  <input type="file" onChange={readFile} />
+	</header>
 	{lines.map((line, i) => <CodeLine line={line} number={i+1} active={i === activeLine} />)}
       </div>
       <div class="Memory">
-	<h2>Memory</h2>
+	<h1>Memory</h1>
+	<h3>Registers</h3>
 	<table>
 	  {Object.keys(process.registers).map((reg) => {
 	     return <tr key={reg}><td>{reg.toUpperCase()}</td><td>{process.registers[reg]}</td></tr>;
+	  })}
+	</table>
+	<h3>Stack</h3>
+	<table>
+	  {process.memory.map((value, address) => {
+	     return <tr key={address}><td>{address}</td><td>{value}</td></tr>;
 	  })}
 	</table>
       </div>
@@ -125,4 +146,4 @@ function App() {
 }
 
 const root = document.querySelector('#root');
-window.onload = () => ReactDOM.render(<App />, root);
+window.onload = () => ReactDOM.render(<App defaultProgram={DEFAULT_PROGRAM} />, root);

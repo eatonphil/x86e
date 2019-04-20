@@ -9,10 +9,23 @@ body {
     font-family: "Droid Sans Mono"
 }
 
-h2 {
+h1, h3 {
     padding: 1rem;
     margin: 0;
+}
+
+header {
+    display: flex;
+    align-items: center;
+}
+
+header,
+h1 {
     background: #111;
+}
+
+h3 {
+    font-size: 18px;
 }
 
 pre {
@@ -28,6 +41,10 @@ pre {
 
 .Instructions {
     width: 80%;
+}
+
+.Instructions h1 {
+    flex: 1;
 }
 
 .Memory {

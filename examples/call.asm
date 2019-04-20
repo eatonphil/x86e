@@ -6,4 +6,5 @@ plus:
 _main:
 	MOV RDI, 2
 	MOV RSI, 3
-	CALL 
+	CALL plus
+	NOP

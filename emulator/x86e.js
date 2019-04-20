@@ -54,7 +54,7 @@ function parseInstruction(line) {
 
   if (currentToken) {
     if (!instruction) {
-      instruction = currentToken;
+      instruction = currentToken.toLowerCase();
     } else {
       args.push(currentToken);
     }

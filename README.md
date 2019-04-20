@@ -14,37 +14,12 @@ $ open localhost:8000/app
 ### Example using Node.js
 
 ```bash
-$ cat examples/plus.asm
-  .global _main
+$ cat examples/plus.c
+int plus(int a, int b) { return a + b; }
 
-  .text
-
-plus:
-  ADD RDI, RSI
-  MOV RAX, RDI
-  RET
-
-_main:
-  PUSH RDI
-  PUSH RSI
-  MOV RDI, 3
-  PUSH RDI
-  PUSH RSI
-  MOV RDI, 2
-  MOV RSI, 1
-  CALL plus
-  POP RSI
-  POP RDI
-  MOV RSI, RAX
-
-  CALL plus
-  POP RSI
-  POP RDI
-
-  MOV RDI, RAX
-  MOV RAX, 1
-  SYSCALL
-$ node emulator/x86e.js examples/plus.asm
+int main() { return plus(1, plus(2, 3)); }
+$ gcc -S -masm=intel -o examples/plus.s examples/plus.c
+$ node emulator/x86e.js examples/plus.s
 $ echo $?
 6
 ```

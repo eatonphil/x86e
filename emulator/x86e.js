@@ -10,7 +10,14 @@ const BIT32_REGISTERS = [
 ];
 
 const SYSCALLS = {
-  EXIT: 1,
+  EXIT: {
+    LINUX: 1,
+    DARWIN: 0x2000001,
+  },
+  WRITE: {
+    LINUX: 4,
+    DARWIN: 0x2000004,
+  },
 };
 
 function parseLabel(line) {
@@ -156,13 +163,14 @@ function interpretValue(process, valueRaw, isLValue) {
 }
 
 function interpretSyscall(process) {
-  if (syscallId === SYSCALLS.EXIT) {
+  if (process.registers.rax === SYSCALLS.EXIT[process.kernel]) {
+    process.done = true;
     process.exit(process.registers.rdi);
   }
 }
 
 async function interpret(process, clock) {
-  while (process.registers.rip < process.instructions.length) {
+  while (process.registers.rip < process.instructions.length && !process.done) {
     await clock();
 
     const { instruction, args } = process.instructions[process.registers.rip];
@@ -240,18 +248,19 @@ async function interpret(process, clock) {
   }
 }
 
-function run(code, clock) {
+function run(code, clock, kernel = 'LINUX') {
   const memory = new Array(1024);
   const { directives, instructions, labels } = parse(code);
   const process = {
     directives,
     instructions,
     labels,
+    kernel,
     registers: REGISTERS.reduce((rs, r) => ({ ...rs, [r]: 0 }), {}),
     memory,
   };
 
-  process.registers.rip = labels._main;
+  process.registers.rip = labels._start;
   process.registers.rsp = process.memory.length;
 
   const done = interpret(process, clock);

@@ -1,3 +1,10 @@
+const START_STUB = `_start:
+	CALL _main
+
+	MOV RDI, RAX
+	MOV RAX, 1
+	SYSCALL`;
+
 const DEFAULT_PROGRAM = `      	.section	__TEXT,__text,regular,pure_instructions
 	.build_version macos, 10, 14	sdk_version 10, 14
 	.intel_syntax noprefix
@@ -46,15 +53,43 @@ _main:                                  ## @main
 
 .subsections_via_symbols`;
 
+function isInstruction(line) {
+  const t = line.trim();
+  return !(t.startsWith('#') || t.includes(':') || t.startsWith('.') || !t.length);
+}
+
 function CodeLine({ active, line, number }) {
+  if (isInstruction(line)) {
+    const { instruction, args } = parseInstruction(line);
+    return (
+      <div className={`CodeLine ${active ? 'CodeLine--active' : ''}`} id={number}>
+	<a href={`#${number}`} className="CodeLine-number">{number}</a>
+	<div className="CodeLine-line">
+	  &nbsp;&nbsp;&nbsp;&nbsp;<span className="code-builtin">{instruction}</span>{' '}
+          {args.map((arg, i) => <React.Fragment><span className="code-value">{arg}</span>{i === args.length - 1 ? '' : ', '}</React.Fragment>)}
+	</div>
+      </div>
+    );
+  }
+
+  if (line.includes(':') && !line.trim().startsWith('#')) {
+    const [label, ...rest] = line.split(':');
+    return (
+      <div className={`CodeLine ${active ? 'CodeLine--active' : ''}`}>
+	<div className="CodeLine-number">{number}</div>
+	<div className="CodeLine-line">
+	  <span className="code-function">{label}:</span>{rest.join(':')}
+	</div>
+      </div>
+    );
+  }
+
   return (
     <div className={`CodeLine ${active ? 'CodeLine--active' : ''}`}>
       <div className="CodeLine-number">{number}</div>
-      <div className="CodeLine-line">
-	<pre>{line}</pre>
-      </div>
+      <pre className="CodeLine-line">{line.replace('\t', '    ')}</pre>
     </div>
-  )
+  );
 }
 
 function Code({ activeLine, code, editing, setCode, setEditing }) {
@@ -74,6 +109,11 @@ function Code({ activeLine, code, editing, setCode, setEditing }) {
       if (e.key === 'Escape') {
 	setEditing(false);
 	return;
+      }
+
+      if (e.key === 'Enter') {
+	setCode(c => c + '\n');
+	setCursor(c => c + 1);
       }
 
       if (e.key === 'Backspace') {
@@ -111,8 +151,12 @@ function ripRealPosition(lines, rip) {
   while (true) {
     realPosition++;
 
-    const line = lines[realPosition].trim();
-    if (line.startsWith('#') || line.includes(':') || line.startsWith('.') || !line.length) {
+    if (realPosition === lines.length) {
+      return 0;
+    }
+
+    const line = lines[realPosition];
+    if (!isInstruction(line)) {
       continue;
     }
 
@@ -130,6 +174,7 @@ function App({ defaultProgram }) {
   const [resetCount, reset] = React.useState(0);
   const [code, setCode] = React.useState(defaultProgram);
   const [editing, setEditing] = React.useState(false);
+  const [output, setOutput] = React.useState('');
   const lines = code.split('\n');
 
   const ticks = React.useRef([]);
@@ -140,15 +185,27 @@ function App({ defaultProgram }) {
 
     ticks.current.pop();
   }
-  clock.onTick = () =>
-    setActiveLine(ripRealPosition(lines, process.registers.rip));
+  clock.onTick = () => {
+    const line = ripRealPosition(lines, process.registers.rip);
+    setActiveLine(line);
+    document.getElementById(line);
+  };
 
   const [activeLine, setActiveLine] = React.useState(0);
   const { process } = React.useMemo(() => {
     const res = run(code, clock);
-    setActiveLine(ripRealPosition(lines, res.process.registers.rip));
+    const line = ripRealPosition(lines, res.process.registers.rip);
+    setActiveLine(line);
+    document.getElementById(line);
     return res;
   }, [code, resetCount]);
+
+  process.exit = (result) => {
+    setOutput(p => p + result)
+  };
+  if (!process.labels._start) {
+    setCode(c => c + '\n' + START_STUB);
+  }
 
   React.useEffect(() => {
     function handler (e) {
@@ -156,6 +213,8 @@ function App({ defaultProgram }) {
 	ticks.current.push(true);
       } else if (e.key === 'e') {
 	setEditing(true);
+      } else if (e.key === 'r') {
+	
       }
     }
 
@@ -170,36 +229,42 @@ function App({ defaultProgram }) {
   };
 
   return (
-    <div class="Wrapper">
-      <div class="Instructions">
-	<header>
-	  <h1>Program</h1>
-	  <button className="mr-2" type="button" onClick={() => setEditing(editing => !editing)}>{editing ? 'Save' : 'Edit'}</button>
-	  <button className="mr-2" type="button" onClick={() => reset(i => i + 1)}>Restart</button>
-	  <input type="file" onChange={readFile} />
-	</header>
-	<Code
-	  editing={editing}
-	  setEditing={setEditing}
-	  activeLine={activeLine}
-	  code={code}
-	  setCode={(value) => (setCode(value), reset(i => i + 1))}
-	/>
+    <div className="Page">
+      <div class="Wrapper">
+	<div class="Instructions">
+	  <header>
+	    <h1>Program</h1>
+	    <button className="mr-2" type="button" onClick={() => setEditing(editing => !editing)}>{editing ? 'Save' : 'Edit'}</button>
+	    <button className="mr-2" type="button" onClick={() => (reset(i => i + 1), setOutput(''))}>Restart</button>
+	    <input type="file" onChange={readFile} />
+	  </header>
+	  <Code
+	    editing={editing}
+	    setEditing={setEditing}
+	    activeLine={activeLine}
+	    code={code}
+	    setCode={(value) => (setCode(value), reset(i => i + 1))}
+	  />
+	</div>
+	<div class="Memory">
+	  <h1>Memory</h1>
+	  <h3>Registers</h3>
+	  <table>
+	    {Object.keys(process.registers).map((reg) => {
+	       return <tr key={reg}><td className="code-builtin">{reg.toUpperCase()}</td><td>{process.registers[reg]}</td></tr>;
+	    })}
+	  </table>
+	  <h3>Stack</h3>
+	  <table>
+	    {process.memory.map((value, address) => {
+	       return <tr key={address}><td className="code-builtin">{address}</td><td>{value}</td></tr>;
+	    })}
+	  </table>
+	</div>
       </div>
-      <div class="Memory">
-	<h1>Memory</h1>
-	<h3>Registers</h3>
-	<table>
-	  {Object.keys(process.registers).map((reg) => {
-	     return <tr key={reg}><td>{reg.toUpperCase()}</td><td>{process.registers[reg]}</td></tr>;
-	  })}
-	</table>
-	<h3>Stack</h3>
-	<table>
-	  {process.memory.map((value, address) => {
-	     return <tr key={address}><td>{address}</td><td>{value}</td></tr>;
-	  })}
-	</table>
+      <div className="Footer">
+	<h1>Input/Output</h1>
+	<pre className="Footer-output">{output}</pre>
       </div>
     </div>
   );

@@ -1,0 +1,64 @@
+/** Droid font stuff **/
+h1 { font-family: "Droid Sans Mono"; font-size: 24px; font-style: normal; font-variant: normal; font-weight: 700; line-height: 26.4px; } h3 { font-family: "Droid Sans Mono"; font-size: 14px; font-style: normal; font-variant: normal; font-weight: 700; line-height: 15.4px; } p { font-family: "Droid Sans Mono"; font-size: 14px; font-style: normal; font-variant: normal; font-weight: 400; line-height: 20px; } blockquote { font-family: "Droid Sans Mono"; font-size: 21px; font-style: normal; font-variant: normal; font-weight: 400; line-height: 30px; } pre { font-family: "Droid Sans Mono"; font-size: 13px; font-style: normal; font-variant: normal; font-weight: 400; line-height: 18.5714px; }
+/** End droid font stuff **/
+
+body {
+    margin: 0;
+    padding: 0;
+    color: white;
+    font-family: "Droid Sans Mono"
+}
+
+h2 {
+    padding: 1rem;
+    margin: 0;
+    background: #111;
+}
+
+pre {
+    margin: 0;
+    padding: 0;
+}
+
+.Wrapper {
+    background: #222;
+    color: white;
+    display: flex;
+}
+
+.Instructions {
+    width: 80%;
+}
+
+.Memory {
+    border-left: 1px solid white;
+    width: 20%;
+}
+
+.Memory table,
+.Memory td{
+    padding: 0 5px;
+}
+
+.CodeLine {
+    display: flex;
+}
+
+.CodeLine .CodeLine-number {
+    background: #447;
+    padding: 0 5px;
+    width: 30px;
+}
+
+.CodeLine .CodeLine-line {
+    flex: 1;
+    padding: 0 5px;
+}
+
+.CodeLine.CodeLine--active .CodeLine-line {
+    background: #744;
+}
+
+.CodeLine .CodeLine-line:hover {
+    background: #474;
+}

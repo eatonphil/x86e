@@ -2,7 +2,14 @@
 
 A simple x86 emulator in JavaScript.
 
-### Example
+### Example using the browser
+
+```bash
+$ python3 -m http.server &
+$ open localhost:8000/app
+```
+
+### Example using Node.js
 
 ```bash
 $ cat examples/plus.asm

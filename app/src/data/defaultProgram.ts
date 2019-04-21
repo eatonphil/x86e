@@ -1,4 +1,4 @@
-	.section	__TEXT,__text,regular,pure_instructions
+export const DEFAULT_PROGRAM = `	.section	__TEXT,__text,regular,pure_instructions
 	.build_version macos, 10, 14	sdk_version 10, 14
 	.intel_syntax noprefix
 	.globl	_plus                   ## -- Begin function plus
@@ -44,4 +44,5 @@ _main:                                  ## @main
 	.cfi_endproc
                                         ## -- End function
 
-.subsections_via_symbols
+.subsections_via_symbols`;
+

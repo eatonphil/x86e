@@ -1,0 +1,24 @@
+{
+  "name": "x86e",
+  "version": "1.0.0",
+  "main": "index.js",
+  "repository": "git@github.com:eatonphil/x86e",
+  "author": "Phil Eaton <phil@eatonphil.com>",
+  "license": "MIT",
+  "dependencies": {
+    "parcel-bundler": "^1.12.3",
+    "react": "^16.0.0",
+    "react-dom": "^16.8.6"
+  },
+  "devDependencies": {
+    "typescript": "^3.4.4"
+  },
+  "browserslist": [
+    "since 2017-06"
+  ],
+  "scripts": {
+    "build-cli": "tsc --allowJs --outDir dist emulator/index.js",
+    "build-app": "parcel app/index.html",
+    "build": "yarn build-cli && yarn build-app"
+  }
+}

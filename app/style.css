@@ -60,11 +60,16 @@ pre {
 
 .Instructions {
     width: 80%;
-    overflow-y: auto;
 }
 
 .Instructions h1 {
     flex: 1;
+}
+
+.Memory-body,
+.Code {
+    height: 100%;
+    overflow-y: auto;
 }
 
 .Memory {

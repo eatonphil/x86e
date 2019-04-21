@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "main": "index.js",
   "repository": "git@github.com:eatonphil/x86e",
-  "author": "Phil Eaton <philneaton95@gmail.com>",
+  "author": "Phil Eaton <phil@eatonphil.com>",
   "license": "MIT",
   "dependencies": {
     "parcel-bundler": "^1.12.3",
@@ -17,6 +17,7 @@
     "since 2017-06"
   ],
   "scripts": {
-    "build": "parcel index.html"
+    "build-cli": "tsc --allowJs --outDir dist emulator/index.js",
+    "build-app": "parcel app/index.html"
   }
 }

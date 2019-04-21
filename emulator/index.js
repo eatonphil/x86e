@@ -1,4 +1,6 @@
-const fs = require('fs');
+import * as fs from 'fs';
+
+import { run, startStub } from './x86e';
 
 function main() {
   const allFlags = {

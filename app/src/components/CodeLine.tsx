@@ -1,6 +1,6 @@
 import * as React from 'react';
 
-import { isInstruction } from '../../../emulator/x86e';
+import { isInstruction, parseInstruction } from '../../../emulator/x86e';
 
 export function CodeLine({ active, line, number }) {
   const wrap = (body) => (

@@ -19,7 +19,7 @@ int plus(int a, int b) { return a + b; }
 
 int main() { return plus(1, plus(2, 3)); }
 $ gcc -S -masm=intel -o examples/plus.s examples/plus.c
-$ node emulator/x86e.js examples/plus.s
+$ node emulator examples/plus.s
 $ echo $?
 6
 ```

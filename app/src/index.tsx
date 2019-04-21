@@ -1,3 +1,9 @@
+import * as React from 'react';
+import * as ReactDOM from 'react-dom';
+
+import { Code } from './components/Code';
+import { isInstruction, run, startStub } from '../../emulator/x86e';
+
 const DEFAULT_PROGRAM = `      	.section	__TEXT,__text,regular,pure_instructions
 	.build_version macos, 10, 14	sdk_version 10, 14
 	.intel_syntax noprefix
@@ -46,98 +52,6 @@ _main:                                  ## @main
 
 .subsections_via_symbols`;
 
-function isInstruction(line) {
-  const t = line.trim();
-  return !(t.startsWith('#') || t.includes(':') || t.startsWith('.') || !t.length);
-}
-
-function CodeLine({ active, line, number }) {
-  if (isInstruction(line)) {
-    const { instruction, args } = parseInstruction(line);
-    return (
-      <div className={`CodeLine ${active ? 'CodeLine--active' : ''}`} id={number}>
-	<a href={`#${number}`} className="CodeLine-number">{number}</a>
-	<div className="CodeLine-line">
-	  &nbsp;&nbsp;&nbsp;&nbsp;<span className="code-builtin">{instruction}</span>{' '}
-          {args.map((arg, i) => <React.Fragment><span className="code-value">{arg}</span>{i === args.length - 1 ? '' : ', '}</React.Fragment>)}
-	</div>
-      </div>
-    );
-  }
-
-  if (line.includes(':') && !line.trim().startsWith('#')) {
-    const [label, ...rest] = line.split(':');
-    return (
-      <div className={`CodeLine ${active ? 'CodeLine--active' : ''}`}>
-	<div className="CodeLine-number">{number}</div>
-	<div className="CodeLine-line">
-	  <span className="code-function">{label}:</span>{rest.join(':')}
-	</div>
-      </div>
-    );
-  }
-
-  return (
-    <div className={`CodeLine ${active ? 'CodeLine--active' : ''}`}>
-      <div className="CodeLine-number">{number}</div>
-      <pre className="CodeLine-line">{line.replace('\t', '    ')}</pre>
-    </div>
-  );
-}
-
-function Code({ activeLine, code, editing, setCode, setEditing }) {
-  const [cursor, setCursor] = React.useState(code.length - 1);
-
-  React.useEffect(() => {
-    if (!editing) {
-      return;
-    }
-
-    function onKeydown(e) {
-      if (!editing || e.altKey || e.ctrlKey || e.metaKey) {
-	return;
-      }
-
-      e.stopPropagation();
-      if (e.key === 'Escape') {
-	setEditing(false);
-	return;
-      }
-
-      if (e.key === 'Enter') {
-	setCode(c => c + '\n');
-	setCursor(c => c + 1);
-      }
-
-      if (e.key === 'Backspace') {
-	setCursor(c => c - 1);
-	setCode(c => {
-	  if (cursor === 0) {
-	    return c;
-	  }
-
-	  if (cursor === code.length - 1) {
-	    return c.slice(0, code.length - 1);
-	  }
-
-	  return c.slice(0, cursor) + c.slice(cursor);
-	});
-      } else if (e.key.length === 1) { // Guess for ignoring things like Meta, Shift, etc.
-	setCode(c => c + e.key);
-      }
-    }
-
-    document.addEventListener('keydown', onKeydown);
-
-    return () => document.removeEventListener('keydown', onKeydown);
-  }, [editing, code]);
-  return (
-    <div>
-      {code.split('\n').map((line, i) => <CodeLine line={line} number={i+1} active={i === activeLine} />)}
-    </div>
-  )
-}
-
 function ripRealPosition(lines, rip) {
   let realPosition = 0;
   let i = 0;
@@ -182,7 +96,7 @@ function App({ defaultProgram }) {
   clock.onTick = () => {
     const line = ripRealPosition(lines, process.registers.rip);
     setActiveLine(line);
-    document.getElementById(line);
+    //document.getElementById(line).scrollIntoView();
   };
 
   const [activeLine, setActiveLine] = React.useState(0);
@@ -190,15 +104,17 @@ function App({ defaultProgram }) {
     const res = run(code, clock, kernel);
     const line = ripRealPosition(lines, res.process.registers.rip);
     setActiveLine(line);
-    document.getElementById(line);
+    //document.getElementById(line).scrollIntoView();
     return res;
   }, [code, resetCount, kernel]);
 
   process.exit = (result) => {
-    setOutput(p => p + result)
+    setOutput(p => p + '(process exited)\n' + result)
   };
   if (!process.labels._start) {
     setCode(c => c + '\n' + startStub(kernel));
+    reset(c => c + 1);
+    setOutput('');
   }
 
   React.useEffect(() => {
@@ -246,18 +162,20 @@ function App({ defaultProgram }) {
 	</div>
 	<div class="Memory">
 	  <h1>Memory</h1>
-	  <h3>Registers</h3>
-	  <table>
-	    {Object.keys(process.registers).map((reg) => {
-	       return <tr key={reg}><td className="code-builtin">{reg.toUpperCase()}</td><td>{process.registers[reg]}</td></tr>;
-	    })}
-	  </table>
-	  <h3>Stack</h3>
-	  <table>
-	    {process.memory.map((value, address) => {
-	       return <tr key={address}><td className="code-builtin">{address}</td><td>{value}</td></tr>;
-	    })}
-	  </table>
+	  <div className="Memory-body">
+	    <h3>Registers</h3>
+	    <table>
+	      {Object.keys(process.registers).map((reg) => {
+		 return <tr key={reg}><td className="code-builtin">{reg.toUpperCase()}</td><td>{process.registers[reg]}</td></tr>;
+	      })}
+	    </table>
+	    <h3>Stack</h3>
+	    <table>
+	      {process.memory.map((value, address) => {
+		 return <tr key={address}><td className="code-builtin">{address}</td><td>{value}</td></tr>;
+	      })}
+	    </table>
+	  </div>
 	</div>
       </div>
       <div className="Footer">

@@ -18,6 +18,7 @@
   ],
   "scripts": {
     "build-cli": "tsc --allowJs --outDir dist emulator/index.js",
-    "build-app": "parcel app/index.html"
+    "build-app": "parcel app/index.html",
+    "build": "yarn build-cli && yarn build-app"
   }
 }

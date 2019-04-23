@@ -3,7 +3,7 @@ const WORD_SIZE_BYTES = 4;
 const REGISTERS = [
   'rdi', 'rsi', 'rsp', 'rbp', 'rax', 'rbx', 'rcx', 'rdx', 'rip', 'r8',
   'r9', 'r10', 'r11', 'r12', 'r13', 'r14', 'r15', 'cs', 'ds', 'fs',
-  'ss', 'es', 'gs',
+  'ss', 'es', 'gs', 'cf', 'zf', 'pf', 'af', 'sf', 'tf', 'if', 'df', 'of',
 ];
 const BIT32_REGISTERS = [
   'edi', 'esi', 'esp', 'ebp', 'eax', 'ebx', 'ecx', 'edx', 'eip',
@@ -157,7 +157,7 @@ function interpretValue(process, valueRaw, isLValue) {
       const offsetString = value.substring('dword ptr ['.length, value.length - 1).trim();
       if (offsetString.includes('-')) {
 	const [l, r] = offsetString.split('-').map(l => interpretValue(process, l.trim()));
-	const address = (process.registers.rsp + l - r) / WORD_SIZE_BYTES;
+	const address = l - (r / WORD_SIZE_BYTES);
 	if (isLValue) {
 	  return address;
 	} else {
@@ -258,6 +258,49 @@ async function interpret(process, clock) {
       case 'syscall': {
 	guardArgs(instruction, args, 0);
 	interpretSyscall(process);
+	break;
+      }
+      case 'cmp': {
+	guardArgs(instruction, args, 2);
+	const lhs = interpretValue(process, args[0]);
+	const rhs = interpretValue(process, args[1]);
+	if (lhs === rhs) {
+	  process.registers.zf = 1;
+	  process.registers.cf = 0;
+	  process.registers.sf = 0;
+	} else if (lhs < rhs) {
+	  process.registers.zf = 0;
+	  process.registers.cf = 1;
+	  process.registers.sf = 1;
+	} else {
+	  process.registers.zf = 0;
+	  process.registers.cf = 0;
+	  process.registers.sf = 0;
+	}
+	process.registers.rip++;
+	break;
+      }
+      case 'jmp': {
+	guardArgs(instruction, args, 1);
+	const label = process.labels[args[0]];
+	if (label === undefined) {
+	  throw new Error('Cannot jmp to invalid label: ' + args[0]);
+	}
+	process.registers.rip = label;
+	break;
+      }
+      case 'jge': {
+	guardArgs(instruction, args, 1);
+	const label = process.labels[args[0]];
+	if (label === undefined) {
+	  throw new Error('Cannot jmp to invalid label: ' + args[0]);
+	}
+
+	if (process.registers.zf || process.registers.cf) {
+	  process.registers.rip = label;
+	} else {
+	  process.registers.rip++;
+	}
 	break;
       }
       default:

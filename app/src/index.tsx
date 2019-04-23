@@ -117,7 +117,7 @@ function App({ defaultProgram }) {
 	  <h1>Memory</h1>
 	  <div className="Memory-body">
 	    <h3>Registers</h3>
-	    <table>
+	    <table style={{ maxHeight: '200px', overflowY: 'auto' }}>
 	      <tbody>
 		{Object.keys(process.registers).map((reg) => {
 		   return <tr key={reg}><td className="code-builtin">{reg.toUpperCase()}</td><td>{process.registers[reg]}</td></tr>;

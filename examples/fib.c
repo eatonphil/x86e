@@ -10,4 +10,4 @@ int fibonacci(int n) {
   return current;
 }
 
-int main() { return fibonacci(5); }
+int main() { return fibonacci(7); } // Should be 13

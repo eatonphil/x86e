@@ -134,6 +134,13 @@ function memoryPop(process, register) {
   process.registers[register] = regValue;
 }
 
+function setFlags(process, value) {
+  process.registers.zf = value === 0 ? 1 : 0;
+  process.registers.sf = value >= 0 ? 0 : 1;
+  // TODO: deal with overflow
+  process.registers.of = 0;
+}
+
 function interpretValue(process, valueRaw, isLValue) {
   const v = (function () {
     const value = valueRaw.toLowerCase();
@@ -227,7 +234,8 @@ async function interpret(process, clock) {
 	guardArgs(instruction, args, 2);
 	const lhs = interpretValue(process, args[0], true);
 	const rhs = interpretValue(process, args[1]);
-	process.registers[lhs] += rhs;
+	const v = process.registers[lhs] += rhs;
+	setFlags(process, v);
 	process.registers.rip++;
 	break;
       }
@@ -235,7 +243,8 @@ async function interpret(process, clock) {
 	guardArgs(instruction, args, 2);
 	const lhs = interpretValue(process, args[0], true);
 	const rhs = interpretValue(process, args[1]);
-	process.registers[lhs] -= rhs;
+	const v = process.registers[lhs] -= rhs;
+	setFlags(process, v);
 	process.registers.rip++;
 	break;
       }
@@ -264,19 +273,7 @@ async function interpret(process, clock) {
 	guardArgs(instruction, args, 2);
 	const lhs = interpretValue(process, args[0]);
 	const rhs = interpretValue(process, args[1]);
-	if (lhs === rhs) {
-	  process.registers.zf = 1;
-	  process.registers.cf = 0;
-	  process.registers.sf = 0;
-	} else if (lhs < rhs) {
-	  process.registers.zf = 0;
-	  process.registers.cf = 1;
-	  process.registers.sf = 1;
-	} else {
-	  process.registers.zf = 0;
-	  process.registers.cf = 0;
-	  process.registers.sf = 0;
-	}
+	setFlags(process, lhs - rhs);
 	process.registers.rip++;
 	break;
       }
@@ -284,19 +281,49 @@ async function interpret(process, clock) {
 	guardArgs(instruction, args, 1);
 	const label = process.labels[args[0]];
 	if (label === undefined) {
-	  throw new Error('Cannot jmp to invalid label: ' + args[0]);
+	  throw new Error('Cannot jump to invalid label: ' + args[0]);
 	}
 	process.registers.rip = label;
+	break;
+      }
+      case 'jz':
+      case 'je': {
+	guardArgs(instruction, args, 1);
+	const label = process.labels[args[0]];
+	if (label === undefined) {
+	  throw new Error('Cannot jump to invalid label: ' + args[0]);
+	}
+
+	if (process.registers.zf) {
+	  process.registers.rip = label;
+	} else {
+	  process.registers.rip++;
+	}
+	break;
+      }
+      case 'jnz':
+      case 'jne': {
+	guardArgs(instruction, args, 1);
+	const label = process.labels[args[0]];
+	if (label === undefined) {
+	  throw new Error('Cannot jump to invalid label: ' + args[0]);
+	}
+
+	if (!process.registers.zf) {
+	  process.registers.rip = label;
+	} else {
+	  process.registers.rip++;
+	}
 	break;
       }
       case 'jge': {
 	guardArgs(instruction, args, 1);
 	const label = process.labels[args[0]];
 	if (label === undefined) {
-	  throw new Error('Cannot jmp to invalid label: ' + args[0]);
+	  throw new Error('Cannot jump to invalid label: ' + args[0]);
 	}
 
-	if (process.registers.zf || process.registers.cf) {
+	if (process.registers.sf === process.registers.of) {
 	  process.registers.rip = label;
 	} else {
 	  process.registers.rip++;

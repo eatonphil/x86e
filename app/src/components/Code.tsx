@@ -50,7 +50,7 @@ export function Code({ activeLine, code, editing, setCode, setEditing }) {
   }, [editing, code]);
   return (
     <div className="Code">
-      {code.split('\n').map((line, i) => <CodeLine line={line} number={i+1} active={i === activeLine} />)}
+      {code.split('\n').map((line, i) => <CodeLine key={i} line={line} number={i+1} active={i === activeLine} />)}
     </div>
   )
 }

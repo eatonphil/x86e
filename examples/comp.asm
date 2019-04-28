@@ -1,7 +1,5 @@
-global main
-
-section .text
-
+	.text
+	.globl _main
 _main:
 	mov  rdi, 2
 	mov  rsi, 3

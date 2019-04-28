@@ -20,7 +20,7 @@ function ripRealPosition(lines, rip) {
       continue;
     }
 
-    if (i === rip) {
+    if (i === Number(rip)) {
       break;
     }
 
@@ -30,117 +30,173 @@ function ripRealPosition(lines, rip) {
   return realPosition;
 }
 
-function App({ defaultProgram }) {
-  const [kernel, setKernel] = React.useState('LINUX');
-  const [resetCount, reset] = React.useState(0);
-  const [code, setCode] = React.useState(defaultProgram);
-  const [editing, setEditing] = React.useState(false);
-  const [output, setOutput] = React.useState('');
-  const lines = code.split('\n');
+class App extends React.Component {
+  DEFAULT_STATE = {
+    kernel: 'LINUX_AMD64',
+    editing: false,
+    output: '',
+    activeLine: 0,
+  };
 
-  const ticks = React.useRef([]);
-  const clock = async () => {
-    while (!ticks.current.length) {
+  ticks = 0;
+  clock = async () => {
+    while (!this.ticks) {
       await new Promise(done => setTimeout(() => done(false), 50));
     }
 
-    ticks.current.pop();
-  }
-  clock.onTick = () => {
-    const line = ripRealPosition(lines, process.registers.rip);
-    setActiveLine(line);
-    //document.getElementById(line).scrollIntoView();
-  };
-
-  const [activeLine, setActiveLine] = React.useState(0);
-  const { process } = React.useMemo(() => {
-    const res = run(code, clock, kernel);
-    const line = ripRealPosition(lines, res.process.registers.rip);
-    setActiveLine(line);
-    //document.getElementById(line).scrollIntoView();
-    return res;
-  }, [code, resetCount, kernel]);
-
-  process.exit = (result) => {
-    setOutput(p => p + '(process exited)\n' + result)
-  };
-  if (!process.labels._start) {
-    setCode(c => c + '\n' + startStub(kernel));
-    reset(c => c + 1);
-    setOutput('');
+    this.ticks--;
+    if (this.ticks < 0) this.ticks = 0;
   }
 
-  React.useEffect(() => {
-    function handler (e) {
+  constructor({ defaultProgram }) {
+    super();
+
+    this.state = {
+      ...this.DEFAULT_STATE,
+      code: defaultProgram,
+    };
+
+    this.clock.onTick = () => {
+      const lines = this.state.code.split('\n');
+      const line = ripRealPosition(lines, this.process.registers.rip);
+      this.setState({ activeLine: line });
+    }
+  }
+
+  componentDidMount() {
+    this.registerProcess();
+    this.registerListeners();
+  }
+
+  reset = () => {
+    this.setState(({ kernel, code }) => ({
+      ...this.DEFAULT_STATE,
+      kernel,
+      code,
+    }), this.registerProcess);
+  }
+
+  setCode = (code) => {
+    this.setState({ code }, this.state.editing ? undefined : this.reset);
+  }
+
+  setEditing = (editing) => {
+    this.setState({ editing }, !editing ? this.reset : undefined);
+  }
+
+  registerListeners = () => {
+    const handler = (e) => {
       if (e.key === 'n' || e.key === 'ArrowDown') {
-	ticks.current.push(true);
+	this.ticks++;
       } else if (e.key === 'e') {
-	setEditing(true);
+	this.setEditing(false);
       } else if (e.key === 'r') {
-	
+	this.reset();
       }
     }
 
     document.addEventListener('keydown', handler);
-    return () => document.removeEventListener('keydown', handler);
-  }, [setActiveLine]);
+  }
 
-  const readFile = ({ target }) => {
+  registerProcess = () => {
+    this.ticks = 0;
+    this.process = run(this.state.code, this.clock, this.state.kernel).process;
+    const lines = this.state.code.split('\n');
+    const line = ripRealPosition(lines, this.process.registers.rip);
+    this.setState({ activeLine: line });
+
+    this.process.exit = (result) =>
+      this.setState(({ output: p }) => ({ output: p + '(process exited)\n' + result }));
+    this.process.fd = {
+      1: {
+	write: (s) => this.setState(({ output }) => ({ output: output + s })),
+      },
+    };
+    if (!this.process.labels._start) {
+      const mainLabel = this.process.labels._main ? '_main' : 'main';
+      this.setCode(this.state.code + '\n' + startStub(this.state.kernel, mainLabel));
+    }
+  }
+
+  readFile = ({ target }) => {
     const reader = new FileReader();
-    reader.onload = () => setCode(reader.result);
+    reader.onload = () => this.setCode(reader.result);
     reader.readAsText(target.files[0]);
   };
 
-  return (
-    <div className="Page">
-      <div className="Wrapper">
-	<div className="Instructions">
-	  <header>
-	    <h1>Program</h1>
-	    <button className="mr-2" type="button" onClick={() => setEditing(editing => !editing)}>{editing ? 'Save' : 'Edit'}</button>
-	    <button className="mr-2" type="button" onClick={() => (reset(i => i + 1), setOutput(''))}>Restart</button>
-	    <select className="mr-2" value={kernel} onChange={({ target: { value } }) => (setKernel(value), reset(i => i + 1), setOutput(''))}>
-	      <option value="LINUX">Emulate Linux</option>
-	      <option value="DARWIN">Emulate Darwin (macOS)</option>
-	    </select>
-	    <input type="file" onChange={readFile} />
-	  </header>
-	  <Code
-	    editing={editing}
-	    setEditing={setEditing}
-	    activeLine={activeLine}
-	    code={code}
-	    setCode={(value) => (setCode(value), reset(i => i + 1), setOutput(''))}
-	  />
-	</div>
-	<div className="Memory">
-	  <h1>Memory</h1>
-	  <div className="Memory-body">
-	    <h3>Registers</h3>
-	    <table style={{ maxHeight: '200px', overflowY: 'auto' }}>
-	      <tbody>
-		{Object.keys(process.registers).map((reg) => {
-		   return <tr key={reg}><td className="code-builtin">{reg.toUpperCase()}</td><td>{process.registers[reg]}</td></tr>;
-		})}
-	      </tbody>
-	    </table>
-	    <h3>Stack</h3>
-	    <table>
-	      <tbody>
-		{process.memory.map((value, address) => {
-		   return <tr key={address}><td className="code-builtin">{address}</td><td>{value}</td></tr>;
-		})}
-	      </tbody>
-	    </table>
+  render() {
+    if (!this.process) {
+      return null;
+    }
+
+    const { activeLine, code, editing, kernel, output } = this.state;
+    return (
+      <div className="Page">
+	<div className="Wrapper">
+	  <div className="Instructions">
+	    <header>
+	      <h1>Program</h1>
+	      <button
+		className="mr-2"
+		type="button"
+		onClick={() => this.setEditing(!editing)}
+	      >
+		{editing ? 'Save' : 'Edit'}
+	      </button>
+	      <button
+		className="mr-2"
+		type="button"
+		onClick={this.reset}
+	      >
+		Restart
+	      </button>
+	      <select
+		className="mr-2"
+		value={kernel}
+		onChange={({ target: { value } }) => this.setState({ kernel: value }, this.reset)}
+	      >
+		<option value="LINUX_AMD64">Emulate AMD64 Linux</option>
+		<option value="DARWIN_AMD64">Emulate AMD64 (macOS)</option>
+	      </select>
+	      <input type="file" onChange={this.readFile} />
+	    </header>
+	    <Code
+	      editing={editing}
+	      setEditing={this.setEditing}
+	      activeLine={activeLine}
+	      code={code}
+	      setCode={(value) => this.setCode(value)}
+	    />
+	  </div>
+	  <div className="Memory">
+	    <h1>Memory</h1>
+	    <div className="Memory-body">
+	      <h3>Registers</h3>
+	      <table style={{ maxHeight: '200px', overflowY: 'auto' }}>
+		<tbody>
+		  {Object.keys(this.process.registers).map((reg) => {
+		     return <tr key={reg}><td className="code-builtin">{reg.toUpperCase()}</td><td>{(this.process.registers[reg] || 0).toString()}</td></tr>;
+		  })}
+		</tbody>
+	      </table>
+	      <h3>Stack</h3>
+	      <table>
+		<tbody>
+		  {this.process.memory.map((value, address) => {
+		     return <tr key={address}><td className="code-builtin">{address}</td><td>{(value || 0).toString()}</td></tr>;
+		  })}
+		</tbody>
+	      </table>
+	    </div>
 	  </div>
 	</div>
+	<div className="Footer">
+	  <h1>Input/Output</h1>
+	  <pre className="Footer-output">{output}</pre>
+	</div>
       </div>
-      <div className="Footer">
-	<h1>Input/Output</h1>
-	<pre className="Footer-output">{output}</pre>
-      </div>
-    </div>
-  );
+    );
+  }
 }
 
 const root = document.querySelector('#root');

@@ -15,7 +15,7 @@ export function CodeLine({ active, line, number }) {
     return wrap(
       <React.Fragment>
         &nbsp;&nbsp;&nbsp;&nbsp;<span className="code-builtin">{instruction}</span>{' '}
-        {args.map((arg, i) => <React.Fragment><span className="code-value">{arg}</span>{i === args.length - 1 ? '' : ', '}</React.Fragment>)}
+        {args.map((arg, i) => <React.Fragment key={i}><span className="code-value">{arg}</span>{i === args.length - 1 ? '' : ', '}</React.Fragment>)}
       </React.Fragment>
     );
   }

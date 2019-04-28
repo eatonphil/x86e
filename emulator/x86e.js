@@ -1,5 +1,3 @@
-const WORD_SIZE_BYTES = 4;
-
 const REGISTERS = [
   'rdi', 'rsi', 'rsp', 'rbp', 'rax', 'rbx', 'rcx', 'rdx', 'rip', 'r8',
   'r9', 'r10', 'r11', 'r12', 'r13', 'r14', 'r15', 'cs', 'ds', 'fs',
@@ -9,23 +7,69 @@ const BIT32_REGISTERS = [
   'edi', 'esi', 'esp', 'ebp', 'eax', 'ebx', 'ecx', 'edx', 'eip',
 ];
 
-const SYSCALLS = {
-  EXIT: {
-    LINUX: 1,
-    DARWIN: 0x2000001,
+const ABIS = {
+  LINUX_AMD64: 'sysv_amd64',
+  DARWIN_AMD64: 'sysv_amd64',
+};
+
+const SYSV_AMD64_SYSCALLS_COMMON = {
+  sys_write(process) {
+    const msg = BigInt(process.registers.rsi);
+    const bytes = process.registers.rdx;
+    for (let i = 0; i < bytes; i++) {
+      const offsetInMemory = BigInt(Math.floor(i / (process.memoryWidthBytes * 8)));
+      const offsetInValue = BigInt(i % process.memoryWidthBytes) * 8n;
+      const byte = process.memory[msg + offsetInMemory] >> offsetInValue & 0xFFn;
+      const char = String.fromCharCode(Number(byte));
+      process.fd[process.registers.rdi].write(char);
+    }
   },
-  WRITE: {
-    LINUX: 4,
-    DARWIN: 0x2000004,
+  sys_exit(process) {
+    process.done = true;
+    process.exit(process.registers.rdi);
   },
 };
 
-export const startStub = (kernel) => `_start:
-	CALL _main
+const SYSCALLS_BY_NAME = {
+  LINUX_AMD64: {
+    sys_write: {
+      id: 1,
+      handler: SYSV_AMD64_SYSCALLS_COMMON.sys_write,
+    },
+    sys_exit: {
+      id: 60,
+      handler: SYSV_AMD64_SYSCALLS_COMMON.sys_exit,
+    },
+  },
+  DARWIN_AMD64: {
+    sys_exit: {
+      id: 1,
+      handler: SYSV_AMD64_SYSCALLS_COMMON.sys_exit,
+    },
+    sys_write: {
+      id: 4,
+      handler: SYSV_AMD64_SYSCALLS_COMMON.sys_write,
+    },
+  },
+};
+
+const SYSCALLS_BY_ID = Object.keys(SYSCALLS_BY_NAME).reduce(
+  (kernels, kernel) => ({
+    ...kernels,
+    [kernel]: Object.keys(SYSCALLS_BY_NAME[kernel]).reduce((syscalls, syscall) => ({
+      ...syscalls,
+      [SYSCALLS_BY_NAME[kernel][syscall].id]: SYSCALLS_BY_NAME[kernel][syscall].handler,
+    }), {}),
+  }), {});
+
+export function startStub(kernel, mainLabel = '_main') {
+  return `_start:
+	CALL ${mainLabel}
 
 	MOV RDI, RAX
-	MOV RAX, ${SYSCALLS.EXIT[kernel]}
-	SYSCALL`;
+	MOV RAX, ${SYSCALLS_BY_NAME[kernel].sys_exit.id}
+	SYSCALL`
+}
 
 function parseLabel(line) {
   let tokens = '';
@@ -108,7 +152,7 @@ function parse(code) {
 
     const label = parseLabel(line);
     if (label) {
-      labels[label] = i - linesSkipped;
+      labels[label] = BigInt(i - linesSkipped);
       linesSkipped++;
       return;
     }
@@ -126,19 +170,19 @@ function guardArgs(instruction, args, length) {
 }
 
 function memoryPush(process, value) {
-  process.memory[process.registers.rsp--] = value;
+  process.memory[--process.registers.rsp] = value;
 }
 
 function memoryPop(process, register) {
-  const regValue = process.memory[++process.registers.rsp];
+  const regValue = process.memory[process.registers.rsp++];
   process.registers[register] = regValue;
 }
 
 function setFlags(process, value) {
-  process.registers.zf = value === 0 ? 1 : 0;
-  process.registers.sf = value >= 0 ? 0 : 1;
+  process.registers.zf = value === 0 ? 1n : 0n;
+  process.registers.sf = value >= 0 ? 0n : 1n;
   // TODO: deal with overflow
-  process.registers.of = 0;
+  process.registers.of = 0n;
 }
 
 function interpretValue(process, valueRaw, isLValue) {
@@ -164,7 +208,8 @@ function interpretValue(process, valueRaw, isLValue) {
       const offsetString = value.substring('dword ptr ['.length, value.length - 1).trim();
       if (offsetString.includes('-')) {
 	const [l, r] = offsetString.split('-').map(l => interpretValue(process, l.trim()));
-	const address = l - (r / WORD_SIZE_BYTES);
+	// dword is 4 bytes
+	const address = l - (r / 4n);
 	if (isLValue) {
 	  return address;
 	} else {
@@ -175,21 +220,15 @@ function interpretValue(process, valueRaw, isLValue) {
       throw new Error('Unsupported offset calculation: ' + value);
     }
 
-    return parseInt(value);
+    return BigInt.asIntN(64, BigInt(value.split(';')[0].trim()));
   })();
-
-  if (!isLValue && isNaN(v)) {
-    throw new Error('Bad offset: ' + valueRaw);
-  }
 
   return v;
 }
 
 function interpretSyscall(process) {
-  if (process.registers.rax === SYSCALLS.EXIT[process.kernel]) {
-    process.done = true;
-    process.exit(process.registers.rdi);
-  }
+  const abi = ABIS[process.kernel];
+  SYSCALLS_BY_ID[process.kernel][process.registers.rax](process);
 }
 
 async function interpret(process, clock) {
@@ -251,7 +290,7 @@ async function interpret(process, clock) {
       case 'call': {
 	guardArgs(instruction, args, 1);
 	const label = args[0];
-	memoryPush(process, process.registers.rip + 1);
+	memoryPush(process, process.registers.rip + 1n);
 	process.registers.rip = process.labels[label];
 	break;
       }
@@ -262,11 +301,12 @@ async function interpret(process, clock) {
       }
       case 'nop':
 	guardArgs(instruction, args, 0);
-	process.registers.rsp++;
+	process.registers.rip++;
 	break;
       case 'syscall': {
 	guardArgs(instruction, args, 0);
 	interpretSyscall(process);
+	process.registers.rip++;
 	break;
       }
       case 'cmp': {
@@ -330,6 +370,42 @@ async function interpret(process, clock) {
 	}
 	break;
       }
+      case 'shl': {
+	guardArgs(instruction, args, 2);
+	const lhs = interpretValue(process, args[0], true);
+	const rhs = interpretValue(process, args[1]);
+	const v = process.registers[lhs] <<= rhs;
+	setFlags(process, v);
+	process.registers.rip++;
+	break;
+      }
+      case 'shr': {
+	guardArgs(instruction, args, 2);
+	const lhs = interpretValue(process, args[0], true);
+	const rhs = interpretValue(process, args[1]);
+	const v = process.registers[lhs] >>= rhs;
+	setFlags(process, v);
+	process.registers.rip++;
+	break;
+      }
+      case 'and': {
+	guardArgs(instruction, args, 2);
+	const lhs = interpretValue(process, args[0], true);
+	const rhs = interpretValue(process, args[1]);
+	const v = process.registers[lhs] &= rhs;
+	setFlags(process, v);
+	process.registers.rip++;
+	break;
+      }
+      case 'or': {
+	guardArgs(instruction, args, 2);
+	const lhs = interpretValue(process, args[0], true);
+	const rhs = interpretValue(process, args[1]);
+	const v = process.registers[lhs] |= rhs;
+	setFlags(process, v);
+	process.registers.rip++;
+	break;
+      }
       default:
 	throw new Error('Unsupported instruction: ' + instruction);
     }
@@ -338,7 +414,7 @@ async function interpret(process, clock) {
   }
 }
 
-export function run(code, clock, kernel = 'LINUX', flags = { debug: {} }) {
+export function run(code, clock, kernel = 'LINUX_AMD64', flags = { debug: {} }) {
   const memory = new Array(1024);
   const { directives, instructions, labels } = parse(code);
   const process = {
@@ -347,13 +423,14 @@ export function run(code, clock, kernel = 'LINUX', flags = { debug: {} }) {
     flags,
     instructions,
     labels,
-    kernel,    
-    registers: REGISTERS.reduce((rs, r) => ({ ...rs, [r]: 0 }), {}),
+    kernel,
+    registers: REGISTERS.reduce((rs, r) => ({ ...rs, [r]: 0n }), {}),
+    memoryWidthBytes: 8,
     memory,
   };
 
   process.registers.rip = labels._start;
-  process.registers.rsp = process.memory.length;
+  process.registers.rsp = BigInt(process.memory.length);
 
   const done = interpret(process, clock);
   return { process, done };

@@ -1,12 +1,10 @@
-  .global _main
-
-  .text
-
+	.text
 plus:
   ADD RDI, RSI
   MOV RAX, RDI
   RET
 
+	.globl _main
 _main:
   PUSH RDI
   PUSH RSI

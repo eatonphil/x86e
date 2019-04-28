@@ -104,8 +104,8 @@ pre {
     background: #744;
 }
 
-.CodeLine .CodeLine-line:hover {
-    background: #474;
+.CodeLine .CodeLine-comment {
+    color: #bb4;
 }
 
 .code-builtin {

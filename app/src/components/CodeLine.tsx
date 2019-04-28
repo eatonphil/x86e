@@ -2,11 +2,26 @@ import * as React from 'react';
 
 import { isInstruction, parseInstruction } from '../../../emulator/x86e';
 
-export function CodeLine({ active, line, number }) {
+export function CodeLine({ active, line: rawLine, number }) {
+  let [line, ...commentsSections] = rawLine.split(';');
+  if (commentsSections.length) {
+    let comments = ';' + commentsSections.join(';');
+  }
+
+  if (!comments) {
+    ([line, ...commentsSections] = rawLine.split('#'));
+    if (commentsSections.length) {
+      comments = '#' + commentsSections.join('#');
+    }
+  }
+
   const wrap = (body) => (
     <div className={`CodeLine ${active ? 'CodeLine--active' : ''}`} id={number}>
       <a href={`#${number}`} className="CodeLine-number">{number}</a>
-      <div className="CodeLine-line">{body}</div>
+      <div className="CodeLine-line">
+	{body}
+	{comments &&  <span className="CodeLine-comment"> {comments}</span>}
+      </div>
     </div>
   );
 

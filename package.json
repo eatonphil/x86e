@@ -23,6 +23,7 @@
     "build-cli": "tsc --allowJs --outDir dist emulator/index.js",
     "build-app": "parcel app/index.html",
     "build": "yarn build-cli && yarn build-app",
-    "lint:fix": "prettier --write 'emulator/**'"
+    "lint:fix": "prettier --write 'emulator/**'",
+    "test": "node ./scripts/test.js"
   }
 }

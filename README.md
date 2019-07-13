@@ -1,4 +1,4 @@
-#x86e
+# x86e
 
 A simple x86 emulator, debugger, and editor in JavaScript.
 
@@ -18,12 +18,11 @@ $ open localhost:1234
 $ yarn
 $ yarn build-cli
 $ cat examples/plus.c
-int plus(int a, int b) {
-  return a + b;
-}
+int plus(int a, int b) { return a + b; }
 
 int main() { return plus(1, plus(2, 3)); }
-$ gcc - S - masm = intel - o examples / plus.s examples /
-                               plus.c $ node dist examples / plus.s $ echo $
-    ? 6
+$ gcc -S -masm=intel -o examples/plus.s examples/plus.c
+$ node dist examples/plus.s
+$ echo $?
+6
 ```

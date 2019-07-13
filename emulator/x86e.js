@@ -536,7 +536,7 @@ export function run(
     debug: {}
   }
 ) {
-  const memory = new Array(Math.power(2, 32));
+  const memory = new Array(Math.pow(2, 32) - 1);
   const { directives, instructions, labels } = parse(code);
   const process = {
     done: false,

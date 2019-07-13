@@ -1,3 +1,4 @@
+	;; EXPECT_STATUS: 6
 	.text
 plus:
   ADD RDI, RSI

@@ -23,6 +23,4 @@ _main:
   POP RSI
   POP RDI
 
-  MOV RDI, RAX
-  MOV RAX, 1
-  SYSCALL
+  RET

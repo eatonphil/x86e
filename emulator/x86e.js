@@ -63,11 +63,6 @@ const BIT16_REGISTERS = [
   "flags"
 ];
 
-const ABIS = {
-  LINUX_AMD64: "sysv_amd64",
-  DARWIN_AMD64: "sysv_amd64"
-};
-
 const SYSV_AMD64_SYSCALLS_COMMON = {
   sys_write(process) {
     const msg = BigInt(process.registers.rsi);
@@ -269,12 +264,14 @@ function readMemoryBytes(process, address, bytes) {
 
 // Pushing is always 8 bytes
 function memoryPush(process, value) {
-  writeMemoryBytes(process, --process.registers.rsp, value, 8);
+  process.registers.rsp -= 8n;
+  writeMemoryBytes(process, process.registers.rsp, value, 8);
 }
 
 // Popping will remove 8 bytes but mask with the register size
 function memoryPop(process, lhs) {
-  const regValue = readMemoryBytes(process, process.registers.rsp++, 8);
+  const regValue = readMemoryBytes(process, process.registers.rsp, 8);
+  process.registers.rsp += 8n;
   process.registers[lhs.register] = maskBytes(regValue, lhs.bytes);
 }
 
@@ -313,7 +310,7 @@ function interpretValue(process, valueRaw, isLValue) {
     for (const pointer of pointers) {
       if (value.startsWith(pointer.prefix + " ptr [")) {
         const offsetString = value
-          .substring(pointer.prefix + " ptr [".length, value.length - 1)
+          .substring((pointer.prefix + " ptr [").length, value.length - 1)
           .trim();
         if (offsetString.includes("-")) {
           const [l, r] = offsetString
@@ -323,7 +320,7 @@ function interpretValue(process, valueRaw, isLValue) {
           if (isLValue) {
             return { address, bytes: pointer.bytes };
           } else {
-            return readMemoryBytes(process.memory, address, pointer.bytes);
+            return readMemoryBytes(process, address, pointer.bytes);
           }
         }
 
@@ -338,14 +335,13 @@ function interpretValue(process, valueRaw, isLValue) {
 }
 
 function interpretSyscall(process) {
-  const abi = ABIS[process.kernel];
-  SYSCALLS_BY_ID[process.kernel][process.registers.rax](process);
+  const idNumber = Number(process.registers.rax);
+  SYSCALLS_BY_ID[process.kernel][idNumber](process);
 }
 
 async function interpret(process, clock) {
   while (process.registers.rip < process.instructions.length && !process.done) {
     await clock();
-
     const { instruction, args } = process.instructions[process.registers.rip];
     if (process.flags.debug.instructions) {
       debug("Instruction: " + instruction + " " + args.join(", "));
@@ -373,7 +369,7 @@ async function interpret(process, clock) {
         if (lhs.register) {
           process.registers[lhs.register] = maskBytes(rhs, lhs.bytes);
         } else {
-          writeMemoryBytes(process.memory, lhs.address, rhs, lhs.bytes);
+          writeMemoryBytes(process, lhs.address, rhs, lhs.bytes);
         }
         process.registers.rip++;
         break;
@@ -395,7 +391,7 @@ async function interpret(process, clock) {
         guardArgs(instruction, args, 2);
         const lhs = interpretValue(process, args[0], true);
         const rhs = interpretValue(process, args[1]);
-        const v = (process.registers[lhs] -= rhs);
+        const v = (process.registers[lhs.register] -= rhs);
         setFlags(process, v);
         process.registers.rip++;
         break;
@@ -488,7 +484,7 @@ async function interpret(process, clock) {
         guardArgs(instruction, args, 2);
         const lhs = interpretValue(process, args[0], true);
         const rhs = interpretValue(process, args[1]);
-        const v = (process.registers[lhs] <<= rhs);
+        const v = (process.registers[lhs.register] <<= rhs);
         setFlags(process, v);
         process.registers.rip++;
         break;
@@ -497,7 +493,7 @@ async function interpret(process, clock) {
         guardArgs(instruction, args, 2);
         const lhs = interpretValue(process, args[0], true);
         const rhs = interpretValue(process, args[1]);
-        const v = (process.registers[lhs] >>= rhs);
+        const v = (process.registers[lhs.register] >>= rhs);
         setFlags(process, v);
         process.registers.rip++;
         break;
@@ -506,7 +502,7 @@ async function interpret(process, clock) {
         guardArgs(instruction, args, 2);
         const lhs = interpretValue(process, args[0], true);
         const rhs = interpretValue(process, args[1]);
-        const v = (process.registers[lhs] &= rhs);
+        const v = (process.registers[lhs.register] &= rhs);
         setFlags(process, v);
         process.registers.rip++;
         break;
@@ -515,7 +511,7 @@ async function interpret(process, clock) {
         guardArgs(instruction, args, 2);
         const lhs = interpretValue(process, args[0], true);
         const rhs = interpretValue(process, args[1]);
-        const v = (process.registers[lhs] |= rhs);
+        const v = (process.registers[lhs.register] |= rhs);
         setFlags(process, v);
         process.registers.rip++;
         break;
@@ -536,7 +532,7 @@ export function run(
     debug: {}
   }
 ) {
-  const memory = new Array(Math.pow(2, 32) - 1);
+  const memory = new Array(Math.pow(2, 10) - 1);
   const { directives, instructions, labels } = parse(code);
   const process = {
     done: false,

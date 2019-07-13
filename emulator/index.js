@@ -8,6 +8,7 @@ async function main() {
     debugInstructions: "Show each instruction with arguments when reached"
   };
   const flags = {};
+  let last = 1;
   process.argv.forEach(function(arg, i) {
     if (!arg.startsWith("--")) return;
 
@@ -25,10 +26,11 @@ async function main() {
 
     if (allFlags[flag]) {
       flags[flag] = process.argv[i + 1];
+      last = i + 1;
     }
   });
 
-  let code = fs.readFileSync(process.argv[2]).toString();
+  let code = fs.readFileSync(process.argv[last + 1]).toString();
 
   if (!flags.kernel) {
     flags.kernel = "LINUX_AMD64";

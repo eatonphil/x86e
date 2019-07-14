@@ -81,7 +81,7 @@ const SYSV_AMD64_SYSCALLS_COMMON = {
   },
   sys_exit(process) {
     process.done = true;
-    process.exit(process.registers.rdi);
+    process.exit(Number(process.registers.rdi));
   }
 };
 
@@ -288,17 +288,25 @@ function interpretValue(process, valueRaw, isLValue) {
     if (BIT64_REGISTERS.includes(value)) {
       if (isLValue) {
         return { register: value, bytes: 8 };
-      } else {
-        return process.registers[value];
       }
+
+      return process.registers[value];
     }
 
     if (BIT32_REGISTERS.includes(value)) {
       if (isLValue) {
         return { register: value.replace("e", "r"), bytes: 4 };
-      } else {
-        return process.registers[value.replace("e", "r")] & 0xffffn;
       }
+
+      return process.registers[value.replace("e", "r")] & 0xffffn;
+    }
+
+    if (BIT16_REGISTERS.includes(value)) {
+      if (isLvalue) {
+	return { register: "r" + value, bytes: 2 };
+      }
+
+      return process.registers["r" + value] & 0xffn;
     }
 
     const pointers = [
@@ -319,9 +327,9 @@ function interpretValue(process, valueRaw, isLValue) {
           const address = l - r;
           if (isLValue) {
             return { address, bytes: pointer.bytes };
-          } else {
-            return readMemoryBytes(process, address, pointer.bytes);
-          }
+	  }
+
+          return readMemoryBytes(process, address, pointer.bytes);
         }
 
         throw new Error("Unsupported offset calculation: " + value);

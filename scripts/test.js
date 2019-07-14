@@ -68,7 +68,7 @@ function main() {
   });
 
   console.log(`\n${ok} of ${testPrograms.length} tests successful.`);
-  if (ok !== testPrograms.length - 1) {
+  if (ok !== testPrograms.length) {
     process.exit(1);
   }
 }

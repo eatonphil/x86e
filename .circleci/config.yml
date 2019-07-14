@@ -17,4 +17,5 @@ jobs:
           name: Install Node dependencies, run tests
           command: |
             yarn
+	    yarn build-cli
             yarn test

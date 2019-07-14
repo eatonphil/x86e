@@ -8,6 +8,7 @@
   "dependencies": {
     "@babel/plugin-syntax-bigint": "^7.4.4",
     "parcel-bundler": "^1.12.3",
+    "prettier": "^1.17.1",
     "react": "^16.0.0",
     "react-dom": "^16.8.6"
   },
@@ -21,6 +22,8 @@
   "scripts": {
     "build-cli": "tsc --allowJs --outDir dist emulator/index.js",
     "build-app": "parcel app/index.html",
-    "build": "yarn build-cli && yarn build-app"
+    "build": "yarn build-cli && yarn build-app",
+    "lint:fix": "prettier --write 'emulator/**' 'scripts/**'",
+    "test": "node ./scripts/test.js"
   }
 }

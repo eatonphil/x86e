@@ -1,3 +1,4 @@
+	;; EXPECT_STATUS: 6
 	.text
 plus:
   ADD RDI, RSI
@@ -22,6 +23,4 @@ _main:
   POP RSI
   POP RDI
 
-  MOV RDI, RAX
-  MOV RAX, 1
-  SYSCALL
+  RET

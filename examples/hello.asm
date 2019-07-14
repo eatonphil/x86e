@@ -1,3 +1,5 @@
+	;; EXPECT_STDOUT: hello\n
+
 	.text
 	.globl main
 

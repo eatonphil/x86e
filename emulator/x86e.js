@@ -303,7 +303,7 @@ function interpretValue(process, valueRaw, isLValue) {
 
     if (BIT16_REGISTERS.includes(value)) {
       if (isLvalue) {
-	return { register: "r" + value, bytes: 2 };
+        return { register: "r" + value, bytes: 2 };
       }
 
       return process.registers["r" + value] & 0xffn;
@@ -327,7 +327,7 @@ function interpretValue(process, valueRaw, isLValue) {
           const address = l - r;
           if (isLValue) {
             return { address, bytes: pointer.bytes };
-	  }
+          }
 
           return readMemoryBytes(process, address, pointer.bytes);
         }

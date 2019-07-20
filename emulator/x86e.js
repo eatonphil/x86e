@@ -66,17 +66,11 @@ const BIT16_REGISTERS = [
 const SYSV_AMD64_SYSCALLS_COMMON = {
   sys_write(process) {
     const msg = BigInt(process.registers.rsi);
-    const bytes = process.registers.rdx;
+    const bytes = Number(process.registers.rdx);
     for (let i = 0; i < bytes; i++) {
-      const offsetInMemory = BigInt(
-        Math.floor(i / (process.memoryWidthBytes * 8))
-      );
-      const offsetInValue = BigInt(i % process.memoryWidthBytes) * 8n;
-      const byte =
-        (readMemoryBytes(process, msg + offsetInMemory, 1) >> offsetInValue) &
-        0xffn;
+      const byte = readMemoryBytes(process, msg + BigInt(i), 1);
       const char = String.fromCharCode(Number(byte));
-      process.fd[process.registers.rdi].write(char);
+      process.fd[Number(process.registers.rdi)].write(char);
     }
   },
   sys_exit(process) {

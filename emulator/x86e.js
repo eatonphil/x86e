@@ -278,7 +278,7 @@ function setFlags(process, value) {
 
 function interpretValue(process, valueRaw, isLValue) {
   const v = (function() {
-    const value = valueRaw.toLowerCase();
+    const value = valueRaw.toLowerCase().split(";")[0].trim();
     if (BIT64_REGISTERS.includes(value)) {
       if (isLValue) {
         return { register: value, bytes: 8 };
@@ -330,7 +330,7 @@ function interpretValue(process, valueRaw, isLValue) {
       }
     }
 
-    return BigInt.asIntN(64, BigInt(value.split(";")[0].trim()));
+    return BigInt.asIntN(64, BigInt(value));
   })();
 
   return v;
